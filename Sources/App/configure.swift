@@ -18,7 +18,10 @@ public func configure(_ config: inout Config, _ env: inout Environment, _ servic
     let database = try MongoKitten.Database(databaseUrl)
     services.register(database)
 
-    let todoRepository = MKTodoRepository(collection: database["todos"])
+    let threadPool = BlockingIOThreadPool(numberOfThreads: 4)
+    threadPool.start()
+
+    let todoRepository = MKTodoRepository(collection: database["todos"], threadPool: threadPool)
     services.register(todoRepository, as: TodoRepository.self)
 }
 

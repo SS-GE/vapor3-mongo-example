@@ -10,13 +10,15 @@ protocol TodoRepository {
 
 final class MKTodoRepository: TodoRepository, Service {
     private let collection: MongoKitten.Collection
+    private let threadPool: BlockingIOThreadPool
 
-    init(collection: MongoKitten.Collection) {
+    init(collection: MongoKitten.Collection, threadPool: BlockingIOThreadPool) {
         self.collection = collection
+        self.threadPool = threadPool
     }
 
     func findAll(on eventLoop: EventLoop) -> Future<[TodoEntity]> {
-        return eventLoop.dispatch {
+        return threadPool.runIfActive(eventLoop: eventLoop) {
             let documents = try self.collection.find()
             let decoder = BSONDecoder()
             return try documents.map { try decoder.decode(TodoEntity.self, from: $0) }
@@ -24,7 +26,7 @@ final class MKTodoRepository: TodoRepository, Service {
     }
 
     func findOneById(_ id: ObjectId, on eventLoop: EventLoop) -> Future<TodoEntity?> {
-        return eventLoop.dispatch {
+        return threadPool.runIfActive(eventLoop: eventLoop) {
             guard let document = try self.collection.findOne("_id" == id) else {
                 return nil
             }
@@ -35,7 +37,7 @@ final class MKTodoRepository: TodoRepository, Service {
     }
 
     func deleteById(_ id: ObjectId, on eventLoop: EventLoop) -> Future<Void> {
-        return eventLoop.dispatch {
+        return threadPool.runIfActive(eventLoop: eventLoop) {
             try self.collection.remove("_id" == id,
                                        limitedTo: 1,
                                        writeConcern: nil,
@@ -44,7 +46,7 @@ final class MKTodoRepository: TodoRepository, Service {
     }
 
     func save(_ todo: TodoEntity, on eventLoop: EventLoop) -> Future<TodoEntity> {
-        return eventLoop.dispatch {
+        return threadPool.runIfActive(eventLoop: eventLoop) {
             let encoder = BSONEncoder()
             let document = try encoder.encode(todo)
             let id = try self.collection.insert(document)
